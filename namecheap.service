@@ -1,0 +1,9 @@
+[Unit]
+Description=Namecheap Dynamic DNS client
+After=network.target
+
+[Service]
+Type=Simple
+ExecStart=/opt/NameCheapDynDNS/NameCheapDynDNS -c=/opt/NameCheapDynDNS/settings.conf
+User=nobody
+Restart=always
