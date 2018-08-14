@@ -1,26 +1,28 @@
 /* NameCheapDynDNS
  *
  * MIT License Copyright 2014 <Kristopher Watts>
-*/
+ */
 
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"time"
-	"os"
+	"io"
 	"io/ioutil"
-	"strings"
+	"log"
+	"net"
 	"net/http"
+	"strings"
+	"time"
 
-	"code.google.com/p/gcfg"
+	gcfg "gopkg.in/gcfg.v1"
 )
+
 type ipConf struct {
-	Host string
+	Host   string
 	Domain string
-	Key string
+	Key    string
 }
 
 type cfgType struct {
@@ -32,7 +34,7 @@ type cfgType struct {
 
 const (
 	whatismyipurl string = "http://bot.whatismyipaddress.com"
-	baseURL string = "http://dynamicdns.park-your-domain.com/update?"
+	baseURL       string = "http://dynamicdns.park-your-domain.com/update?"
 )
 
 var (
@@ -42,8 +44,7 @@ var (
 func init() {
 	flag.Parse()
 	if *confFile == "" {
-		fmt.Printf("No settings file specified")
-		os.Exit(-1)
+		log.Fatal("No settings file specified")
 	}
 
 }
@@ -54,15 +55,13 @@ func main() {
 	//get config file content
 	confContent, err := ioutil.ReadFile(*confFile)
 	if err != nil {
-		fmt.Printf("Failed to load config file: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("Failed to load config file: %v\n", err)
 	}
 
 	//load the configuration into our conf struct
 	conf, err := loadConfigs(string(confContent))
 	if err != nil {
-		fmt.Printf("Invalid configuration file: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("Invalid configuration file: %v\n", err)
 	}
 
 	for {
@@ -71,13 +70,13 @@ func main() {
 			if currIP != localIP {
 				err = UpdateDynIPs(localIP, conf)
 				if err != nil {
-					fmt.Printf("Failed to update host: %v\n", err)
+					log.Printf("Failed to update host: %v\n", err)
 				}
 			}
 		} else {
-			fmt.Printf("Failed to hit google and get remote IP: %v", err)
+			log.Printf("Failed to hit google and get remote IP: %v", err)
 		}
-		time.Sleep(time.Minute*time.Duration(conf.Global.UpdateInterval))
+		time.Sleep(time.Minute * time.Duration(conf.Global.UpdateInterval))
 	}
 }
 
@@ -89,8 +88,11 @@ func getIP() (string, error) {
 	defer resp.Body.Close()
 	body := make([]byte, 4096)
 	n, err := resp.Body.Read(body)
-	if err != nil {
-		return "", err
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("Failed to read body %s: %v %d", resp.Status, err, n)
+	}
+	if net.ParseIP(string(body[0:n])) == nil {
+		return "", fmt.Errorf("Bad IP response: \"%v\"", string(body[0:n]))
 	}
 	ipaddy := string(body[0:n])
 	return ipaddy, nil
@@ -102,7 +104,7 @@ func UpdateDynIPs(address string, cfg cfgType) error {
 		err := UpdateIPs(address, val)
 		if err != nil {
 			totalError = err
-			fmt.Printf("Failed to update %v: %v\n", key, err)
+			log.Printf("Failed to update %v: %v\n", key, err)
 		}
 	}
 	return totalError
@@ -113,10 +115,10 @@ func UpdateIPs(address string, cfg *ipConf) error {
 		baseURL, address, cfg.Host, cfg.Domain, cfg.Key)
 	body, err := hitURL(url)
 	if err != nil {
-		return errors.New("Failed to issue update request")
+		return fmt.Errorf("Failed to update IP: %v", err)
 	}
 	if !strings.Contains(string(body), "<ErrCount>0</ErrCount>") {
-		return fmt.Errorf("Failed to update %v.%v", cfg.Host, cfg.Domain)
+		return fmt.Errorf("Failed to update %v.%v: %v", cfg.Host, cfg.Domain, string(body))
 	}
 	return nil
 }
@@ -130,7 +132,7 @@ func hitURL(url string) ([]byte, error) {
 
 	body := make([]byte, 4096)
 	n, err := resp.Body.Read(body)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 	return body[0:n], nil
