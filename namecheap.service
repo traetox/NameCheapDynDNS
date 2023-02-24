@@ -7,3 +7,6 @@ Type=Simple
 ExecStart=/opt/NameCheapDynDNS/NameCheapDynDNS -c=/opt/NameCheapDynDNS/settings.conf
 User=nobody
 Restart=always
+
+[Install]
+Wanted-By=multi-user.target

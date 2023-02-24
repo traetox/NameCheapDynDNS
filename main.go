@@ -33,7 +33,7 @@ type cfgType struct {
 }
 
 const (
-	whatismyipurl string = "http://bot.whatismyipaddress.com"
+	whatismyipurl string = "https://ipinfo.io/ip"
 	baseURL       string = "http://dynamicdns.park-your-domain.com/update?"
 )
 
